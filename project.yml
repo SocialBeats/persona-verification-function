@@ -1,0 +1,8 @@
+packages:
+  - name: verification
+    environment:
+      PERSONA_WEBHOOK_SECRET: ${PERSONA_WEBHOOK_SECRET}
+      GATEWAY_MASTER_KEY: ${GATEWAY_MASTER_KEY}
+    functions:
+      - name: persona-webhook
+        runtime: nodejs:default

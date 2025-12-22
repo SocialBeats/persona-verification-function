@@ -1,0 +1,16 @@
+{
+  "name": "persona-webhook",
+  "version": "1.0.0",
+  "description": "Persona verification webhook function",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "persona",
+    "webhook",
+    "verification"
+  ],
+  "author": "",
+  "license": "ISC"
+}
