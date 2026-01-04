@@ -56,7 +56,26 @@ exports.main = async function(args) {
 
     // En DO Functions, el body raw viene como string en __ow_body si existe
     // Si no, tenemos que reconstruirlo del objeto args
-    const rawBody = args.__ow_body || JSON.stringify(args);
+    // ---------------------------------------------------------
+    // 1. OBTENER EL RAW BODY CORRECTAMENTE (NUEVO)
+    // ---------------------------------------------------------
+    let rawBody = args.__ow_body;
+
+    if (args.__ow_isBase64 && rawBody) {
+        rawBody = Buffer.from(rawBody, 'base64').toString('utf8');
+    }
+
+    if (!rawBody) {
+        console.warn('⚠️ __ow_body no encontrado. Intentando reconstruir JSON...');
+        const cleanArgs = { ...args };
+        delete cleanArgs.http;
+        delete cleanArgs.__ow_headers;
+        delete cleanArgs.__ow_path;
+        delete cleanArgs.__ow_method;
+        delete cleanArgs.__ow_body;
+        delete cleanArgs.__ow_isBase64;
+        rawBody = JSON.stringify(cleanArgs);
+    }
 
     // Validar firma de Persona
     if (!verifyPersonaSignature(rawBody, signature, webhookSecret)) {
