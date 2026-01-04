@@ -96,30 +96,49 @@ exports.main = async function(args) {
 
     console.log('Evento recibido de Persona:', JSON.stringify(event.data ? event.data.id : 'sin id'));
 
+ // ---------------------------------------------------------
+    // 3. PARSEAR Y PROCESAR EVENTO (NUEVA LÓGICA)
     // ---------------------------------------------------------
-    // 3. FILTRAR EVENTO (Solo si pasó la verificación)
-    // ---------------------------------------------------------
-    if (event.data && event.data.attributes && 
-       (event.data.attributes.status === 'passed' || event.data.attributes.status === 'completed')) {
-        
-        const userId = event.data.attributes.reference_id;
-        const inquiryId = event.data.id;
+    // Detectamos si el evento viene anidado (lo normal en Webhooks de Persona)
+    let inquiryData = null;
 
-        console.log(`✅ Usuario ${userId} verificado. Inquiry: ${inquiryId}`);
+    if (event.data && event.data.attributes && event.data.attributes.payload && event.data.attributes.payload.data) {
+        // CASO 1: Viene dentro de 'payload' (Tu caso actual: inquiry.approved)
+        inquiryData = event.data.attributes.payload.data;
+    } else if (event.data && event.data.type === 'inquiry') {
+        // CASO 2: Viene directo (A veces pasa en otros eventos)
+        inquiryData = event.data;
+    }
+
+    // Si no encontramos datos de inquiry válidos, ignoramos
+    if (!inquiryData || !inquiryData.attributes) {
+        console.log("ℹ️ Evento ignorado: No contiene datos de Inquiry válidos.");
+        return { body: { message: "Estructura ignorada" }, statusCode: 200 };
+    }
+
+    const status = inquiryData.attributes.status;
+    const userId = inquiryData.attributes.reference_id;
+    const inquiryId = inquiryData.id;
+
+    console.log(`🔎 Estado: ${status} | Usuario: ${userId} | ID: ${inquiryId}`);
+
+    // ---------------------------------------------------------
+    // 4. FILTRAR Y ACTUALIZAR (Soporta 'approved', 'passed', 'completed')
+    // ---------------------------------------------------------
+    if (status === 'approved' || status === 'passed' || status === 'completed') {
+        
+        console.log(`✅ ¡ÉXITO! Usuario ${userId} ha sido aprobado/verificado.`);
 
         if (!userId) {
-            console.error("Reference ID (userId) faltante en el evento");
+            console.error("❌ Error: Reference ID (userId) faltante");
             return { body: { error: "Reference ID missing" }, statusCode: 400 };
         }
 
         try {
-            // ---------------------------------------------------------
-            // 4. LLAMADA AL API GATEWAY
-            // ---------------------------------------------------------
             const gatewayUrl = process.env.API_GATEWAY_URL;
             const updateUrl = `${gatewayUrl}/api/v1/profile/internal/${userId}/verification-status`;
             
-            console.log(`Llamando al gateway: ${updateUrl}`);
+            console.log(`🚀 Llamando al gateway: ${updateUrl}`);
 
             await axios.put(updateUrl, 
                 { 
@@ -137,10 +156,7 @@ exports.main = async function(args) {
             return { body: { message: "Perfil actualizado correctamente" }, statusCode: 200 };
 
         } catch (error) {
-            console.error("Error llamando al Gateway:", error.message);
-            if (error.response) {
-                console.error("Detalles respuesta error:", error.response.status, error.response.data);
-            }
+            console.error("❌ Error llamando al Gateway:", error.message);
             return { body: { error: "Fallo interno al actualizar" }, statusCode: 500 };
         }
     }
@@ -148,10 +164,9 @@ exports.main = async function(args) {
     // ---------------------------------------------------------
     // 5. MANEJAR OTROS ESTADOS
     // ---------------------------------------------------------
-    if (event.data && event.data.attributes && event.data.attributes.status === 'failed') {
-        console.log(`⚠️ Verificación fallida para evento ${event.data.id}`);
+    if (status === 'failed' || status === 'declined') {
+        console.log(`⚠️ Verificación fallida o rechazada para ${userId}`);
     }
 
-    // Respondemos OK para que Persona no reintente
-    return { body: { message: "Evento ignorado (no es 'passed'/'completed')" }, statusCode: 200 };
+    return { body: { message: `Evento ignorado (Estado: ${status})` }, statusCode: 200 };
 }
